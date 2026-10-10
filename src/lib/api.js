@@ -333,13 +333,18 @@ export async function deleteClient(id) {
 async function roleForUser(userId) {
   try {
     const { data, error } = await supabase.rpc('get_my_role')
-    if (!error && (typeof data === 'string' || data === null)) return data
+    if (!error && typeof data === 'string') return data
   } catch {
-    /* fonction absente sur l'ancien schéma -> repli ci-dessous */
+    /* fonction absente ou erreur réseau -> repli ci-dessous */
   }
   if (!userId) return null
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).maybeSingle()
-  return profile?.role || null
+  try {
+    const { error: profErr, data: profile } = await supabase.from('profiles').select('role').eq('id', userId).maybeSingle()
+    if (!profErr && profile?.role) return profile.role
+  } catch {
+    /* erreur réseau pendant le secours -> rôle inconnu */
+  }
+  return null
 }
 
 export async function login(email, password) {
@@ -358,7 +363,7 @@ export async function login(email, password) {
     const role = await roleForUser(data.user.id)
     if (role !== 'admin') {
       await supabase.auth.signOut()
-      throw new Error("Accès refusé : compte administrateur requis.")
+      throw new Error(`Accès refusé : compte administrateur requis. (rôle lu : ${String(role)})`)
     }
     return data.user
   }
