@@ -330,6 +330,18 @@ export async function deleteClient(id) {
 }
 
 // ---------- AUTH ----------
+async function roleForUser(userId) {
+  try {
+    const { data, error } = await supabase.rpc('get_my_role')
+    if (!error && (typeof data === 'string' || data === null)) return data
+  } catch {
+    /* fonction absente sur l'ancien schéma -> repli ci-dessous */
+  }
+  if (!userId) return null
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).maybeSingle()
+  return profile?.role || null
+}
+
 export async function login(email, password) {
   if (isSupabaseConfigured) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
@@ -343,8 +355,8 @@ export async function login(email, password) {
       }
       throw error
     }
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).single()
-    if (profile?.role !== 'admin') {
+    const role = await roleForUser(data.user.id)
+    if (role !== 'admin') {
       await supabase.auth.signOut()
       throw new Error("Accès refusé : compte administrateur requis.")
     }
@@ -363,7 +375,8 @@ export async function login(email, password) {
 
 export async function resetPassword(email) {
   if (!isSupabaseConfigured) throw new Error('Configurer Supabase pour réinitialiser le mot de passe')
-  const { error } = await supabase.auth.resetPasswordForEmail(email)
+  const origin = typeof window !== 'undefined' ? window.location.origin : ''
+  const { error } = await supabase.auth.resetPasswordForEmail(email, origin ? { redirectTo: `${origin}/admin/reinitialiser` } : undefined)
   if (error) throw error
 }
 
@@ -379,8 +392,8 @@ export async function getCurrentUser() {
   if (isSupabaseConfigured) {
     const { data } = await supabase.auth.getSession()
     if (!data.session) return null
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.session.user.id).single()
-    if (profile?.role !== 'admin') return null
+    const role = await roleForUser(data.session.user.id)
+    if (role !== 'admin') return null
     return data.session.user
   }
   return readLS(K.auth, null)

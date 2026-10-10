@@ -17,14 +17,23 @@ export default function ResetPassword() {
       navigate('/admin/login', { replace: true })
       return
     }
+    let mounted = true
+    const { data: listener } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY' && mounted) setReady(true)
+    })
     supabase.auth.getSession().then(({ data }) => {
-      if (!data.session) {
+      if (!mounted) return
+      if (data.session) {
+        setReady(true)
+      } else {
         toast.error('Lien invalide ou expiré.')
         navigate('/admin/login', { replace: true })
-      } else {
-        setReady(true)
       }
     })
+    return () => {
+      mounted = false
+      listener?.subscription?.unsubscribe()
+    }
   }, [navigate])
 
   const submit = async (e) => {
