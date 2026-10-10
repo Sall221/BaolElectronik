@@ -1,0 +1,102 @@
+-- =====================================================
+-- Baol Electronik — Données de démonstration
+-- À exécuter APRÈS schema.sql
+-- =====================================================
+
+insert into public.products (name, slug, description, price, old_price, stock, category, brand, images, colors, storage, rating, reviews_count, featured) values
+('iPhone 16 Pro Max', 'iphone-16-pro-max',
+ 'L''iPhone 16 Pro Max redéfinit la puissance mobile avec la puce A18 Pro, un écran Super Retina XDR 6,9" et un appareil photo 48 Mpx révolutionnaire. Titane premium, autonomie exceptionnelle.',
+ 899000, 1050000, 25, 'Smartphones', 'Apple',
+ array['https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=900&q=80','https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=900&q=80'],
+ '[{"name":"Titane Naturel","hex":"#B8AFA3"},{"name":"Titane Noir","hex":"#2C2C2E"},{"name":"Titane Blanc","hex":"#E8E6E3"}]'::jsonb,
+ '[{"label":"256 Go","delta":0},{"label":"512 Go","delta":120000},{"label":"1 To","delta":250000}]'::jsonb,
+ 4.9, 128, true),
+
+('Samsung Galaxy S25 Ultra', 'galaxy-s25-ultra',
+ 'Galaxy S25 Ultra : Galaxy AI, S Pen intégré, écran AMOLED 6,9" et triple capteur 200 Mpx. Le sommet de la technologie Samsung.',
+ 749000, 899000, 30, 'Smartphones', 'Samsung',
+ array['https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?w=900&q=80','https://images.unsplash.com/photo-1565849904461-04a58ad377e0?w=900&q=80'],
+ '[{"name":"Violet Titanium","hex":"#6B5B8E"},{"name":"Gris Acier","hex":"#8E8E93"},{"name":"Noir","hex":"#1C1C1E"}]'::jsonb,
+ '[{"label":"256 Go","delta":0},{"label":"512 Go","delta":100000},{"label":"1 To","delta":200000}]'::jsonb,
+ 4.8, 94, true),
+
+('Google Pixel 9 Pro', 'pixel-9-pro',
+ 'Pixel 9 Pro : l''IA de Google au service de la photo. Puce Tensor G4, écran Super Actua et 7 ans de mises à jour.',
+ 549000, 649000, 18, 'Smartphones', 'Google',
+ array['https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=900&q=80'],
+ '[{"name":"Obsidienne","hex":"#1C1C1E"},{"name":"Porcelaine","hex":"#F0EBE3"},{"name":"Iris","hex":"#7B6C9E"}]'::jsonb,
+ '[{"label":"128 Go","delta":0},{"label":"256 Go","delta":70000}]'::jsonb,
+ 4.7, 61, true),
+
+('Xiaomi 14 Ultra', 'xiaomi-14-ultra',
+ 'Xiaomi 14 Ultra : optique Leica Summilux, écran AMOLED WQHD+ 120 Hz et charge 90W. Photo de niveau professionnel.',
+ 629000, 749000, 12, 'Smartphones', 'Xiaomi',
+ array['https://images.unsplash.com/photo-1585060544812-6b45742d762f?w=900&q=80'],
+ '[{"name":"Noir","hex":"#1C1C1E"},{"name":"Blanc","hex":"#F5F5F7"}]'::jsonb,
+ '[{"label":"256 Go","delta":0},{"label":"512 Go","delta":90000}]'::jsonb,
+ 4.6, 47, true),
+
+('iPhone 15', 'iphone-15',
+ 'iPhone 15 : Dynamic Island, capteur 48 Mpx, USB-C et puce A16 Bionic. L''essentiel d''iPhone, dans un design en aluminium et verre.',
+ 499000, 599000, 40, 'Smartphones', 'Apple',
+ array['https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=900&q=80'],
+ '[{"name":"Rose","hex":"#F2D4D0"},{"name":"Bleu","hex":"#A9C4D6"},{"name":"Noir","hex":"#1C1C1E"},{"name":"Jaune","hex":"#F5E6A8"}]'::jsonb,
+ '[{"label":"128 Go","delta":0},{"label":"256 Go","delta":80000}]'::jsonb,
+ 4.8, 203, false),
+
+('Samsung Galaxy A55', 'galaxy-a55',
+ 'Galaxy A55 : écran Super AMOLED 120 Hz, caméra 50 Mpx et batterie 5000 mAh. Le meilleur rapport qualité-prix.',
+ 289000, 349000, 55, 'Smartphones', 'Samsung',
+ array['https://images.unsplash.com/photo-1565849904461-04a58ad377e0?w=900&q=80'],
+ '[{"name":"Iceblue","hex":"#B7CDD9"},{"name":"Lilac","hex":"#C9B8D6"},{"name":"Graphite","hex":"#3A3A3C"}]'::jsonb,
+ '[{"label":"128 Go","delta":0},{"label":"256 Go","delta":50000}]'::jsonb,
+ 4.5, 88, false),
+
+('AirPods Pro 2 (USB-C)', 'airpods-pro-2',
+ 'AirPods Pro 2 avec USB-C : réduction de bruit active, audio adaptatif et boîtier de charge MagSafe. Son immersif partout.',
+ 229000, 269000, 60, 'Audio', 'Apple',
+ array['https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=900&q=80','https://images.unsplash.com/photo-1600294037681-c80b4cb5b434?w=900&q=80'],
+ '[{"name":"Blanc","hex":"#F5F5F7"}]'::jsonb,
+ '[]'::jsonb,
+ 4.9, 312, true),
+
+('Casque Sony WH-1000XM5', 'sony-wh-1000xm5',
+ 'Le casque sans fil ANC leader du marché : 30 heures d''autonomie, audio haute résolution et microphones haute précision.',
+ 349000, 399000, 22, 'Audio', 'Sony',
+ array['https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=900&q=80','https://images.unsplash.com/photo-1546435770-a3e426bf472b?w=900&q=80'],
+ '[{"name":"Noir","hex":"#1C1C1E"},{"name":"Bleu","hex":"#2E4A6B"},{"name":"Argent","hex":"#C0C0C0"}]'::jsonb,
+ '[]'::jsonb,
+ 4.8, 176, false),
+
+('Apple Watch Series 10', 'apple-watch-s10',
+ 'Apple Watch Series 10 : écran Wide Angle OLED plus grand, capteurs avancés de santé et charge rapide. Votre allié santé au quotidien.',
+ 399000, 459000, 28, 'Montres', 'Apple',
+ array['https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=900&q=80','https://images.unsplash.com/photo-1579586337278-3befd40fd17a?w=900&q=80'],
+ '[{"name":"Acier Noir","hex":"#1C1C1E"},{"name":"Acier Crème","hex":"#E8DCC8"}]'::jsonb,
+ '[{"label":"42 mm","delta":0},{"label":"46 mm","delta":40000}]'::jsonb,
+ 4.7, 95, true),
+
+('Chargeur GaN 100W', 'chargeur-gan-100w',
+ 'Chargeur rapide GaN 100W avec 3 ports USB-C + USB-A. Chargez laptop, smartphone et écouteurs simultanément.',
+ 49000, 69000, 120, 'Accessoires', 'Anker',
+ array['https://images.unsplash.com/photo-1609091839311-d5365f9ff1c5?w=900&q=80'],
+ '[{"name":"Blanc","hex":"#F5F5F7"},{"name":"Noir","hex":"#1C1C1E"}]'::jsonb,
+ '[]'::jsonb,
+ 4.6, 54, false),
+
+('Powerbank 20 000 mAh', 'powerbank-20000',
+ 'Batterie externe 20 000 mAh avec charge rapide 65W et affichage LED. Autonomie pour plusieurs jours sans prise.',
+ 39000, 49000, 85, 'Accessoires', 'Anker',
+ array['https://images.unsplash.com/photo-1609592806596-b43bada2f4be?w=900&q=80'],
+ '[{"name":"Noir","hex":"#1C1C1E"}]'::jsonb,
+ '[]'::jsonb,
+ 4.5, 41, false),
+
+('Enceinte JBL Flip 6', 'jbl-flip-6',
+ 'Enceinte portable JBL Flip 6 : son JBL Original Pro, résistance IP67 et 12 heures d''écoute. Amplifiez chaque instant.',
+ 129000, 159000, 40, 'Audio', 'JBL',
+ array['https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=900&q=80'],
+ '[{"name":"Noir","hex":"#1C1C1E"},{"name":"Bleu","hex":"#1E40AF"},{"name":"Rouge","hex":"#B22222"}]'::jsonb,
+ '[]'::jsonb,
+ 4.7, 133, false)
+on conflict (slug) do nothing;
