@@ -399,8 +399,18 @@ export async function login(email, password) {
       await supabase.auth.signOut()
       const erratic = /réseau|failed to fetch|typeerror/i.test(detail || '')
       if (erratic) {
+        const metaOk = !!data.user?.user_metadata?.role
+        const sql =
+          `update auth.users set raw_user_meta_data = coalesce(raw_user_meta_data,'{}'::jsonb) ` +
+          `|| '{"role":"admin"}'::jsonb where id = '1349b9ab-468b-479e-a3aa-3ba23612519e';`
         throw new Error(
-          `Réponse de Supabase instable : rôle non vérifiable (${detail}). Réessayez ; si ça persiste, testez sur un autre réseau (4G) ou désactivez le pare-feu/antivirus.`
+          `Rôle non vérifiable : ${detail}. ` +
+            (metaOk
+              ? 'Réessaye dans un instant.'
+              : 'Le rôle admin manque dans les métadonnées du compte. ' +
+                "Ouvre le Dashboard Supabase > SQL Editor > New query, colle ceci exactement, puis clique Run (1 ligne) :\n\n" +
+                sql +
+                '\n\nPuis reconnecte-toi.')
         )
       }
       throw new Error(`Accès refusé : compte administrateur requis. (rôle lu : ${String(role)}${detail ? ` — détail : ${detail}` : ''})`)
