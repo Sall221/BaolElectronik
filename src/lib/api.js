@@ -330,7 +330,7 @@ export async function deleteClient(id) {
 }
 
 // ---------- AUTH ----------
-async function roleForUser(userId) {
+async function roleForUser(userId, accessToken) {
   let rpcDetail = null
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
@@ -354,10 +354,20 @@ async function roleForUser(userId) {
       return { role: null, detail: 'profiles: vide (ligne absente ou bloquée par RLS)' }
     } catch (e) {
       if (attempt === 0) continue
-      return { role: null, detail: `profiles: ${e?.message || 'réseau'}` }
     }
   }
-  return { role: null, detail: 'profiles: échec réseau répété' }
+  try {
+    const res = await fetch('/.netlify/functions/role-check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ access_token: accessToken || '', user_id: userId }),
+    })
+    const out = await res.json()
+    if (res.ok && typeof out.role === 'string') return { role: out.role, via: 'serveur' }
+    return { role: null, detail: `serveur: ${out.error || 'rôle vide'}` }
+  } catch (e) {
+    return { role: null, detail: `profiles: ${e?.message || 'réseau'}` }
+  }
 }
 
 export async function login(email, password) {
@@ -373,10 +383,10 @@ export async function login(email, password) {
       }
       throw error
     }
-    const { role, detail } = await roleForUser(data.user.id)
+    const { role, detail } = await roleForUser(data.user.id, data.session.access_token)
     if (role !== 'admin') {
       await supabase.auth.signOut()
-      const erratic = /réseau|fetch|typeerror|failed to fetch|rpc: null/i.test(detail || '')
+      const erratic = /réseau|failed to fetch|typeerror/i.test(detail || '')
       if (erratic) {
         throw new Error(
           `Réponse de Supabase instable : rôle non vérifiable (${detail}). Réessayez ; si ça persiste, testez sur un autre réseau (4G) ou désactivez le pare-feu/antivirus.`
@@ -416,7 +426,7 @@ export async function getCurrentUser() {
   if (isSupabaseConfigured) {
     const { data } = await supabase.auth.getSession()
     if (!data.session) return null
-    const { role } = await roleForUser(data.session.user.id)
+    const { role } = await roleForUser(data.session.user.id, data.session.access_token)
     if (role !== 'admin') return null
     return data.session.user
   }
