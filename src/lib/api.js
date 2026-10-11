@@ -462,19 +462,47 @@ export async function getProfile() {
     const { data } = await supabase.auth.getUser()
     const user = data?.user
     const meta = user?.user_metadata || {}
-    return { ...DEFAULT_PROFILE, name: meta.name || '', email: user?.email || '', phone: meta.phone || '', avatar: meta.avatar || '' }
+    const localAvatar = readLS('baol_profile_avatar', '')
+    return {
+      ...DEFAULT_PROFILE,
+      name: meta.name || '',
+      email: user?.email || '',
+      phone: meta.phone || '',
+      avatar: localAvatar || meta.avatar || ''
+    }
   }
   return { ...DEFAULT_PROFILE, ...readLS(K.profile, {}) }
 }
 
 export async function saveProfile(profile) {
   if (isSupabaseConfigured) {
+    let currentEmail = null
+    try {
+      const { data } = await supabase.auth.getUser()
+      currentEmail = data?.user?.email || null
+    } catch {
+      // on continue sans comparaison d'email
+    }
     const attrs = {}
-    if (profile.email) attrs.email = profile.email
+    if (profile.email && profile.email !== currentEmail) attrs.email = profile.email
     if (profile.password) attrs.password = profile.password
-    attrs.data = { name: profile.name || '', phone: profile.phone || '', avatar: profile.avatar || '' }
+    const isDataUrl = !!profile.avatar && typeof profile.avatar === 'string' && profile.avatar.startsWith('data:')
+    if (isDataUrl) writeLS('baol_profile_avatar', profile.avatar)
+    attrs.data = { name: profile.name || '', phone: profile.phone || '', avatar: isDataUrl ? '' : profile.avatar || '' }
     const { error } = await supabase.auth.updateUser(attrs)
-    if (error) throw error
+    if (error) {
+      const msg = (error.message || '').toLowerCase()
+      if (msg.includes('invalid jwt') || msg.includes('expired')) {
+        throw new Error('Session expirée — reconnectez-vous puis réessayez.')
+      }
+      if (msg.includes('not allowed') || msg.includes('forbidden')) {
+        throw new Error('Supabase a refusé la modification. Reconnectez-vous puis réessayez.')
+      }
+      if (msg.includes('already registered') || msg.includes('duplicate')) {
+        throw new Error('Cet email est déjà utilisé par un autre compte.')
+      }
+      throw error
+    }
     return getProfile()
   }
   writeLS(K.profile, {
