@@ -330,7 +330,18 @@ export async function deleteClient(id) {
 }
 
 // ---------- AUTH ----------
-async function roleForUser(userId, accessToken) {
+async function roleForUser(userId, accessToken, authUser) {
+  const meta = authUser?.user_metadata
+  if (meta && typeof meta.role === 'string') return { role: meta.role, via: 'metadata' }
+  if (userId && accessToken) {
+    try {
+      const { data } = await supabase.auth.getUser(accessToken)
+      const m = data?.user?.user_metadata
+      if (m && typeof m.role === 'string') return { role: m.role, via: 'metadata' }
+    } catch {
+      // on continue vers les autre sources
+    }
+  }
   let rpcDetail = null
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
@@ -383,7 +394,7 @@ export async function login(email, password) {
       }
       throw error
     }
-    const { role, detail } = await roleForUser(data.user.id, data.session.access_token)
+    const { role, detail } = await roleForUser(data.user.id, data.session.access_token, data.user)
     if (role !== 'admin') {
       await supabase.auth.signOut()
       const erratic = /réseau|failed to fetch|typeerror/i.test(detail || '')
@@ -426,7 +437,7 @@ export async function getCurrentUser() {
   if (isSupabaseConfigured) {
     const { data } = await supabase.auth.getSession()
     if (!data.session) return null
-    const { role } = await roleForUser(data.session.user.id, data.session.access_token)
+    const { role } = await roleForUser(data.session.user.id, data.session.access_token, data.session.user)
     if (role !== 'admin') return null
     return data.session.user
   }
