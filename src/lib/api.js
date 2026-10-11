@@ -331,20 +331,23 @@ export async function deleteClient(id) {
 
 // ---------- AUTH ----------
 async function roleForUser(userId) {
+  let rpcDetail = null
   try {
     const { data, error } = await supabase.rpc('get_my_role')
-    if (!error && typeof data === 'string') return data
-  } catch {
-    /* fonction absente ou erreur réseau -> repli ci-dessous */
+    if (!error && typeof data === 'string') return { role: data }
+    if (error) rpcDetail = `${error.code || ''} ${error.message || ''}`.trim()
+  } catch (e) {
+    rpcDetail = e?.message || 'réseau'
   }
-  if (!userId) return null
+  if (!userId) return { role: null, detail: `rpc: ${rpcDetail}` }
   try {
     const { error: profErr, data: profile } = await supabase.from('profiles').select('role').eq('id', userId).maybeSingle()
-    if (!profErr && profile?.role) return profile.role
-  } catch {
-    /* erreur réseau pendant le secours -> rôle inconnu */
+    if (!profErr && profile?.role) return { role: profile.role }
+    if (profErr) return { role: null, detail: `profiles: ${profErr.code || ''} ${profErr.message || ''}`.trim() }
+    return { role: null, detail: 'profiles: vide (ligne absente ou bloquée par RLS)' }
+  } catch (e) {
+    return { role: null, detail: `profiles: ${e?.message || 'réseau'}` }
   }
-  return null
 }
 
 export async function login(email, password) {
@@ -360,10 +363,10 @@ export async function login(email, password) {
       }
       throw error
     }
-    const role = await roleForUser(data.user.id)
+    const { role, detail } = await roleForUser(data.user.id)
     if (role !== 'admin') {
       await supabase.auth.signOut()
-      throw new Error(`Accès refusé : compte administrateur requis. (rôle lu : ${String(role)})`)
+      throw new Error(`Accès refusé : compte administrateur requis. (rôle lu : ${String(role)}${detail ? ` — détail : ${detail}` : ''})`)
     }
     return data.user
   }
@@ -397,7 +400,7 @@ export async function getCurrentUser() {
   if (isSupabaseConfigured) {
     const { data } = await supabase.auth.getSession()
     if (!data.session) return null
-    const role = await roleForUser(data.session.user.id)
+    const { role } = await roleForUser(data.session.user.id)
     if (role !== 'admin') return null
     return data.session.user
   }
