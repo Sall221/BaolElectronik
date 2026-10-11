@@ -465,7 +465,7 @@ export async function getProfile() {
     const localAvatar = readLS('baol_profile_avatar', '')
     return {
       ...DEFAULT_PROFILE,
-      name: meta.name || '',
+      name: meta.name || DEFAULT_PROFILE.name,
       email: user?.email || '',
       phone: meta.phone || '',
       avatar: localAvatar || meta.avatar || ''

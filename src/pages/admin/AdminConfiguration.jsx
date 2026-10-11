@@ -33,8 +33,8 @@ export default function AdminConfiguration() {
     try {
       await updateSettings(form)
       toast.success('Configuration enregistrée')
-    } catch {
-      toast.error('Erreur lors de la sauvegarde')
+    } catch (err) {
+      toast.error((err && err.message) || 'Erreur lors de la sauvegarde')
     } finally {
       setSaving(false)
     }
