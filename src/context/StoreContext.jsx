@@ -18,16 +18,46 @@ export function StoreProvider({ children }) {
     try { return JSON.parse(localStorage.getItem('baol_favorites')) || [] } catch { return [] }
   })
 
-  const refresh = useCallback(async () => {
-    const [p, s, o] = await Promise.allSettled([getProducts(), getSettings(), getOrders()])
-    if (p.status === 'fulfilled') setProducts(Array.isArray(p.value) ? p.value : [])
-    if (o.status === 'fulfilled') setOrders(Array.isArray(o.value) ? o.value : [])
-    if (s.status === 'fulfilled') setSettings({ ...DEMO_SETTINGS, ...(s.value || {}) })
-    if (p.status === 'rejected' && o.status === 'rejected' && s.status === 'rejected') {
-      toast.error('Erreur de chargement des données')
+const retry = async (fn, attempts = 3, baseDelay = 1000) => {
+  let lastErr
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn()
+    } catch (err) {
+      lastErr = err
+      if (i < attempts - 1) await new Promise((r) => setTimeout(r, baseDelay * (i + 1)))
     }
-    setLoading(false)
-  }, [])
+  }
+  throw lastErr
+}
+
+const refresh = useCallback(async () => {
+  const [p, s, o] = await Promise.allSettled([
+    retry(() => getProducts()),
+    retry(() => getSettings()),
+    retry(() => getOrders()),
+  ])
+  if (p.status === 'fulfilled') setProducts(Array.isArray(p.value) ? p.value : [])
+  if (o.status === 'fulfilled') setOrders(Array.isArray(o.value) ? o.value : [])
+  if (s.status === 'fulfilled') setSettings({ ...DEMO_SETTINGS, ...(s.value || {}) })
+  if (p.status === 'rejected' && o.status === 'rejected' && s.status === 'rejected') {
+    toast(
+      (t) => (
+        <div className="flex items-center gap-3">
+          <span>Erreur de chargement des données</span>
+          <button
+            className="rounded-lg bg-nuit px-3 py-1.5 text-xs font-bold text-white"
+            onClick={() => { toast.dismiss(t.id); refresh() }}
+          >
+            Réessayer
+          </button>
+        </div>
+      ),
+      { duration: 12000 },
+    )
+  }
+  setLoading(false)
+}, [])
 
   useEffect(() => { refresh() }, [refresh])
 
