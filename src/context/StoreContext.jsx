@@ -1,16 +1,18 @@
-import { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import toast from 'react-hot-toast'
-import { getProducts, getSettings, getOrders, saveSettings as apiSaveSettings } from '../lib/api'
+import { getProducts, getSettings, getOrders, saveSettings as apiSaveSettings, readCache, onNetworkChange } from '../lib/api'
 import { DEMO_SETTINGS } from '../lib/demoData'
 import { normalizeCategories } from '../lib/constants'
 
 const StoreContext = createContext(null)
 
 export function StoreProvider({ children }) {
-  const [products, setProducts] = useState([])
-  const [orders, setOrders] = useState([])
-  const [settings, setSettings] = useState(DEMO_SETTINGS)
-  const [loading, setLoading] = useState(true)
+  const [products, setProducts] = useState(() => readCache('products') || [])
+  const [orders, setOrders] = useState(() => readCache('orders') || [])
+  const [settings, setSettings] = useState(() => ({ ...DEMO_SETTINGS, ...(readCache('settings') || {}) }))
+  const [loading, setLoading] = useState(() => !readCache('products'))
+  const [online, setOnline] = useState(true)
+  const onlineRef = useRef(true)
   const [cart, setCart] = useState(() => {
     try { return JSON.parse(localStorage.getItem('baol_cart')) || [] } catch { return [] }
   })
@@ -60,6 +62,26 @@ const refresh = useCallback(async () => {
 }, [])
 
   useEffect(() => { refresh() }, [refresh])
+
+  useEffect(() => {
+    return onNetworkChange((offline) => {
+      onlineRef.current = !offline
+      setOnline(!offline)
+    })
+  }, [])
+
+  useEffect(() => {
+    const goOnline = () => refresh()
+    window.addEventListener('online', goOnline)
+    return () => window.removeEventListener('online', goOnline)
+  }, [refresh])
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (!onlineRef.current) refresh()
+    }, 15000)
+    return () => clearInterval(id)
+  }, [refresh])
 
   useEffect(() => {
     localStorage.setItem('baol_cart', JSON.stringify(cart))
@@ -143,7 +165,7 @@ const refresh = useCallback(async () => {
   }, [settings])
 
   const value = {
-    products, setProducts, orders, loading, refresh,
+    products, setProducts, orders, loading, online, refresh,
     settings, updateSettings, categories, stats,
     cart, addToCart, updateCartQty, removeFromCart, clearCart, cartCount, cartTotal,
     favorites, toggleFavorite

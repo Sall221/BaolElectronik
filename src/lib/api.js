@@ -91,27 +91,107 @@ export async function tableExists(name) {
   return !isMissingTable(error)
 }
 
+// ---------- CACHE HORS-LIGNE ----------
+// Chaque lecture réussie est stockée localement ; en cas de réseau instable,
+// la valeur en cache est renvoyée à la place de lever une erreur.
+const CACHE_PREFIX = 'baol_cache_'
+
+function cacheRead(name) {
+  try {
+    const raw = localStorage.getItem(CACHE_PREFIX + name)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+function cacheWrite(name, value) {
+  try {
+    localStorage.setItem(CACHE_PREFIX + name, JSON.stringify(value))
+  } catch {
+    // stockage plein : on ignore, l'app continue en live
+  }
+}
+export function readCache(name) {
+  return cacheRead(name)
+}
+
+const offlineListeners = new Set()
+let offlineNow = false
+export function onNetworkChange(cb) {
+  offlineListeners.add(cb)
+  return () => offlineListeners.delete(cb)
+}
+function setOffline(v) {
+  if (offlineNow === v) return
+  offlineNow = v
+  for (const cb of offlineListeners) {
+    try {
+      cb(v)
+    } catch {
+      // listener défaillant ignoré
+    }
+  }
+}
+
+function isNetworkError(error) {
+  const msg = `${error?.message || ''} ${error?.details || ''} ${error?.cause?.message || ''}`
+  return /failed to fetch|fetch failed|networkerror|load failed|offline|temporary failure|connection (reset|closed|timed out|refused)|socketerror|internet|network request/i.test(msg)
+}
+
+async function withCache(name, fetcher) {
+  try {
+    const data = await fetcher()
+    cacheWrite(name, data)
+    setOffline(false)
+    return data
+  } catch (err) {
+    if (isNetworkError(err)) {
+      const cached = cacheRead(name)
+      if (cached !== null) {
+        setOffline(true)
+        return cached
+      }
+    }
+    throw err
+  }
+}
+
+function cacheUpsert(name, item) {
+  const list = Array.isArray(cacheRead(name)) ? cacheRead(name) : []
+  const idx = list.findIndex((x) => String(x.id) === String(item.id))
+  const next = idx >= 0 ? [...list.slice(0, idx), item, ...list.slice(idx + 1)] : [item, ...list]
+  cacheWrite(name, next)
+}
+function cacheRemoveItem(name, id) {
+  const list = Array.isArray(cacheRead(name)) ? cacheRead(name) : []
+  cacheWrite(name, list.filter((x) => String(x.id) !== String(id)))
+}
+
 // ---------- PRODUITS ----------
 export async function getProducts() {
   if (isSupabaseConfigured) {
-    const { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: false })
-    if (error) {
-      if (isMissingTable(error)) return []
-      throw error
-    }
-    return mapDeep(data)
+    return withCache('products', async () => {
+      const { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: false })
+      if (error) {
+        if (isMissingTable(error)) return []
+        throw error
+      }
+      return mapDeep(data)
+    })
   }
   return mapDeep(readLS(K.products, []))
 }
 
 export async function getProductBySlug(slug) {
   if (isSupabaseConfigured) {
-    const { data, error } = await supabase.from('products').select('*').eq('slug', slug).single()
-    if (error) {
-      if (isMissingTable(error) || error.code === 'PGRST116') return null
-      throw error
-    }
-    return mapDeep(data)
+    return withCache(`product_${slug}`, async () => {
+      const { data, error } = await supabase.from('products').select('*').eq('slug', slug).single()
+      if (error) {
+        if (isMissingTable(error) || error.code === 'PGRST116') return null
+        throw error
+      }
+      return mapDeep(data)
+    })
   }
   return mapDeep(readLS(K.products, [])).find((p) => p.slug === slug) || null
 }
@@ -125,10 +205,12 @@ export async function saveProduct(product) {
     if (product.id) {
       const { data, error } = await supabase.from('products').update(payload).eq('id', product.id).select().single()
       if (error) throw error
+      cacheUpsert('products', data)
       return data
     }
     const { data, error } = await supabase.from('products').insert(payload).select().single()
     if (error) throw error
+    cacheUpsert('products', data)
     return data
   }
   const list = readLS(K.products, [])
@@ -146,6 +228,7 @@ export async function deleteProduct(id) {
   if (isSupabaseConfigured) {
     const { error } = await supabase.from('products').delete().eq('id', id)
     if (error) throw error
+    cacheRemoveItem('products', id)
     return
   }
   writeLS(K.products, readLS(K.products, []).filter((p) => p.id !== id))
@@ -154,21 +237,28 @@ export async function deleteProduct(id) {
 // ---------- COMMANDES ----------
 export async function getOrders() {
   if (isSupabaseConfigured) {
-    const { data, error } = await supabase.from('orders').select('*').order('created_at', { ascending: false })
-    if (error) {
-      if (isMissingTable(error)) return []
-      throw error
-    }
-    return mapDeep(data)
+    return withCache('orders', async () => {
+      const { data, error } = await supabase.from('orders').select('*').order('created_at', { ascending: false })
+      if (error) {
+        if (isMissingTable(error)) return []
+        throw error
+      }
+      return mapDeep(data)
+    })
   }
   return mapDeep(readLS(K.orders, [])).sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
 }
 
 export async function getOrder(id) {
   if (isSupabaseConfigured) {
-    const { data, error } = await supabase.from('orders').select('*').eq('id', id).single()
-    if (error) throw error
-    return mapDeep(data)
+    return withCache(`order_${id}`, async () => {
+      const { data, error } = await supabase.from('orders').select('*').eq('id', id).single()
+      if (error) {
+        if (error.code === 'PGRST116') return null
+        throw error
+      }
+      return mapDeep(data)
+    })
   }
   return mapDeep(readLS(K.orders, [])).find((o) => o.id === id) || null
 }
@@ -188,6 +278,7 @@ export async function createOrder(order) {
   if (isSupabaseConfigured) {
     const { data, error } = await supabase.from('orders').insert(payload).select().single()
     if (error) throw error
+    cacheUpsert('orders', data)
     return data
   }
   const list = readLS(K.orders, [])
@@ -201,6 +292,7 @@ export async function updateOrderStatus(id, status) {
   if (isSupabaseConfigured) {
     const { data, error } = await supabase.from('orders').update({ status }).eq('id', id).select().single()
     if (error) throw error
+    cacheUpsert('orders', data)
     return data
   }
   const list = readLS(K.orders, [])
@@ -214,6 +306,12 @@ export async function updateOrderCustomer(id, fields) {
   if (isSupabaseConfigured) {
     const { error } = await supabase.from('orders').update(fields).eq('id', id)
     if (error) throw error
+    const cached = Array.isArray(cacheRead('orders')) ? cacheRead('orders') : []
+    const i = cached.findIndex((o) => String(o.id) === String(id))
+    if (i >= 0) {
+      cached[i] = { ...cached[i], ...fields }
+      cacheWrite('orders', cached)
+    }
     return
   }
   const list = readLS(K.orders, [])
@@ -228,11 +326,13 @@ export async function saveOrder(order) {
       const { id, ...payload } = order
       const { data, error } = await supabase.from('orders').update(payload).eq('id', id).select().single()
       if (error) throw error
+      cacheUpsert('orders', data)
       return data
     }
     const payload = order.number ? order : { ...order, number: await nextOrderNumber() }
     const { data, error } = await supabase.from('orders').insert(payload).select().single()
     if (error) throw error
+    cacheUpsert('orders', data)
     return data
   }
   const list = readLS(K.orders, [])
@@ -253,6 +353,7 @@ export async function deleteOrder(id) {
   if (isSupabaseConfigured) {
     const { error } = await supabase.from('orders').delete().eq('id', id)
     if (error) throw error
+    cacheRemoveItem('orders', id)
     return
   }
   writeLS(K.orders, readLS(K.orders, []).filter((o) => o.id !== id))
@@ -261,12 +362,14 @@ export async function deleteOrder(id) {
 // ---------- PARAMÃˆTRES CMS ----------
 export async function getSettings() {
   if (isSupabaseConfigured) {
-    const { data, error } = await supabase.from('settings').select('data').eq('id', 1).single()
-    if (error) {
-      if (isMissingTable(error) || error.code === 'PGRST116') return { ...DEMO_SETTINGS }
-      throw error
-    }
-    return { ...DEMO_SETTINGS, ...mapDeep(data?.data || {}) }
+    return withCache('settings', async () => {
+      const { data, error } = await supabase.from('settings').select('data').eq('id', 1).single()
+      if (error) {
+        if (isMissingTable(error) || error.code === 'PGRST116') return { ...DEMO_SETTINGS }
+        throw error
+      }
+      return { ...DEMO_SETTINGS, ...mapDeep(data?.data || {}) }
+    })
   }
   return mapDeep(readLS(K.settings, DEMO_SETTINGS))
 }
@@ -275,6 +378,8 @@ export async function saveSettings(settings) {
   if (isSupabaseConfigured) {
     const { error } = await supabase.from('settings').update({ data: settings, updated_at: new Date().toISOString() }).eq('id', 1)
     if (error) throw error
+    cacheWrite('settings', settings)
+    setOffline(false)
     return settings
   }
   writeLS(K.settings, settings)
@@ -284,12 +389,14 @@ export async function saveSettings(settings) {
 // ---------- MÃ‰DIATHÃˆQUE ----------
 export async function getMedia() {
   if (isSupabaseConfigured) {
-    const { data, error } = await supabase.from('media').select('*').order('created_at', { ascending: false })
-    if (error) {
-      if (isMissingTable(error)) return []
-      throw error
-    }
-    return mapDeep(data)
+    return withCache('media', async () => {
+      const { data, error } = await supabase.from('media').select('*').order('created_at', { ascending: false })
+      if (error) {
+        if (isMissingTable(error)) return []
+        throw error
+      }
+      return mapDeep(data)
+    })
   }
   return mapDeep(readLS(K.media, []))
 }
@@ -303,6 +410,7 @@ export async function uploadMedia(name, dataUrl) {
     const { data } = supabase.storage.from('media').getPublicUrl(path)
     const { data: row, error } = await supabase.from('media').insert({ name, url: data.publicUrl }).select().single()
     if (error) throw error
+    cacheUpsert('media', row)
     return row
   }
   const list = readLS(K.media, [])
@@ -316,6 +424,7 @@ export async function deleteMedia(id) {
   if (isSupabaseConfigured) {
     const { error } = await supabase.from('media').delete().eq('id', id)
     if (error) throw error
+    cacheRemoveItem('media', id)
     return
   }
   writeLS(K.media, readLS(K.media, []).filter((m) => m.id !== id))
@@ -324,12 +433,14 @@ export async function deleteMedia(id) {
 // ---------- CLIENTS ----------
 export async function getClients() {
   if (isSupabaseConfigured) {
-    const { data, error } = await supabase.from('clients').select('*').order('created_at', { ascending: false })
-    if (error) {
-      if (isMissingTable(error)) return []
-      throw error
-    }
-    return mapDeep(data)
+    return withCache('clients', async () => {
+      const { data, error } = await supabase.from('clients').select('*').order('created_at', { ascending: false })
+      if (error) {
+        if (isMissingTable(error)) return []
+        throw error
+      }
+      return mapDeep(data)
+    })
   }
   return mapDeep(readLS(K.clients, [])).sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
 }
@@ -347,10 +458,12 @@ export async function saveClient(client) {
     if (client.id) {
       const { data, error } = await supabase.from('clients').update(payload).eq('id', client.id).select().single()
       if (error) throw error
+      cacheUpsert('clients', data)
       return data
     }
     const { data, error } = await supabase.from('clients').insert(payload).select().single()
     if (error) throw error
+    cacheUpsert('clients', data)
     return data
   }
   const list = readLS(K.clients, [])
@@ -371,6 +484,7 @@ export async function deleteClient(id) {
   if (isSupabaseConfigured) {
     const { error } = await supabase.from('clients').delete().eq('id', id)
     if (error) throw error
+    cacheRemoveItem('clients', id)
     return
   }
   writeLS(K.clients, readLS(K.clients, []).filter((c) => c.id !== id))

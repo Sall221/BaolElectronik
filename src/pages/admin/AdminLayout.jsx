@@ -7,6 +7,7 @@ import {
 import toast from 'react-hot-toast'
 import { getCurrentUser, getProfile, logout } from '../../lib/api'
 import { useStore } from '../../context/StoreContext'
+import OfflineBanner from '../../components/OfflineBanner'
 
 const nav = [
   { to: '/admin', end: true, icon: LayoutDashboard, label: 'Tableau de bord' },
@@ -150,6 +151,7 @@ export default function AdminLayout() {
           <Outlet />
         </main>
       </div>
+      <OfflineBanner />
     </div>
   )
 }

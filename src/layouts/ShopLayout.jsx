@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import Header from '../components/Header'
 import Footer from '../components/Footer'
+import OfflineBanner from '../components/OfflineBanner'
 
 export default function ShopLayout() {
   const { pathname } = useLocation()
@@ -17,6 +18,7 @@ export default function ShopLayout() {
         <Outlet />
       </main>
       <Footer />
+      <OfflineBanner />
     </div>
   )
 }
