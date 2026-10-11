@@ -62,23 +62,38 @@ if (!isSupabaseConfigured) ensureDemoSeed()
 
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36)
 
+export function sbUrl(u) {
+  if (!u || typeof u !== 'string') return u
+  const base = import.meta.env.VITE_SUPABASE_URL
+  if (!base || !u.startsWith(base)) return u
+  return '/supabase' + u.slice(base.length)
+}
+
+function mapDeep(v) {
+  try {
+    return JSON.parse(JSON.stringify(v), (_k, s) => (typeof s === 'string' ? sbUrl(s) : s))
+  } catch {
+    return v
+  }
+}
+
 // ---------- PRODUITS ----------
 export async function getProducts() {
   if (isSupabaseConfigured) {
     const { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: false })
     if (error) throw error
-    return data
+    return mapDeep(data)
   }
-  return readLS(K.products, [])
+  return mapDeep(readLS(K.products, []))
 }
 
 export async function getProductBySlug(slug) {
   if (isSupabaseConfigured) {
     const { data, error } = await supabase.from('products').select('*').eq('slug', slug).single()
     if (error) throw error
-    return data
+    return mapDeep(data)
   }
-  return readLS(K.products, []).find((p) => p.slug === slug) || null
+  return mapDeep(readLS(K.products, [])).find((p) => p.slug === slug) || null
 }
 
 export async function saveProduct(product) {
@@ -121,18 +136,18 @@ export async function getOrders() {
   if (isSupabaseConfigured) {
     const { data, error } = await supabase.from('orders').select('*').order('created_at', { ascending: false })
     if (error) throw error
-    return data
+    return mapDeep(data)
   }
-  return readLS(K.orders, []).sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+  return mapDeep(readLS(K.orders, [])).sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
 }
 
 export async function getOrder(id) {
   if (isSupabaseConfigured) {
     const { data, error } = await supabase.from('orders').select('*').eq('id', id).single()
     if (error) throw error
-    return data
+    return mapDeep(data)
   }
-  return readLS(K.orders, []).find((o) => o.id === id) || null
+  return mapDeep(readLS(K.orders, [])).find((o) => o.id === id) || null
 }
 
 async function nextOrderNumber() {
@@ -220,14 +235,14 @@ export async function deleteOrder(id) {
   writeLS(K.orders, readLS(K.orders, []).filter((o) => o.id !== id))
 }
 
-// ---------- PARAMÈTRES CMS ----------
+// ---------- PARAMÃˆTRES CMS ----------
 export async function getSettings() {
   if (isSupabaseConfigured) {
     const { data, error } = await supabase.from('settings').select('data').eq('id', 1).single()
     if (error) throw error
-    return { ...DEMO_SETTINGS, ...(data?.data || {}) }
+    return { ...DEMO_SETTINGS, ...mapDeep(data?.data || {}) }
   }
-  return readLS(K.settings, DEMO_SETTINGS)
+  return mapDeep(readLS(K.settings, DEMO_SETTINGS))
 }
 
 export async function saveSettings(settings) {
@@ -240,14 +255,14 @@ export async function saveSettings(settings) {
   return settings
 }
 
-// ---------- MÉDIATHÈQUE ----------
+// ---------- MÃ‰DIATHÃˆQUE ----------
 export async function getMedia() {
   if (isSupabaseConfigured) {
     const { data, error } = await supabase.from('media').select('*').order('created_at', { ascending: false })
     if (error) throw error
-    return data
+    return mapDeep(data)
   }
-  return readLS(K.media, [])
+  return mapDeep(readLS(K.media, []))
 }
 
 export async function uploadMedia(name, dataUrl) {
@@ -284,7 +299,7 @@ export async function getClients() {
     if (error) throw error
     return data
   }
-  return readLS(K.clients, []).sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+  return mapDeep(readLS(K.clients, [])).sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
 }
 
 export async function saveClient(client) {
@@ -352,7 +367,7 @@ async function roleForUser(userId, accessToken, authUser) {
         break
       }
     } catch (e) {
-      rpcDetail = e?.message || 'réseau'
+      rpcDetail = e?.message || 'rÃ©seau'
       if (attempt === 0 && userId) continue
     }
   }
@@ -362,7 +377,7 @@ async function roleForUser(userId, accessToken, authUser) {
       const { error: profErr, data: profile } = await supabase.from('profiles').select('role').eq('id', userId).maybeSingle()
       if (!profErr && profile?.role) return { role: profile.role }
       if (profErr) return { role: null, detail: `profiles: ${profErr.code || ''} ${profErr.message || ''}`.trim() }
-      return { role: null, detail: 'profiles: vide (ligne absente ou bloquée par RLS)' }
+      return { role: null, detail: 'profiles: vide (ligne absente ou bloquÃ©e par RLS)' }
     } catch (e) {
       if (attempt === 0) continue
     }
@@ -375,9 +390,9 @@ async function roleForUser(userId, accessToken, authUser) {
     })
     const out = await res.json()
     if (res.ok && typeof out.role === 'string') return { role: out.role, via: 'serveur' }
-    return { role: null, detail: `serveur: ${out.error || 'rôle vide'}` }
+    return { role: null, detail: `serveur: ${out.error || 'rÃ´le vide'}` }
   } catch (e) {
-    return { role: null, detail: `profiles: ${e?.message || 'réseau'}` }
+    return { role: null, detail: `profiles: ${e?.message || 'rÃ©seau'}` }
   }
 }
 
@@ -390,30 +405,30 @@ export async function login(email, password) {
         throw new Error('Email ou mot de passe incorrect.')
       }
       if (msg.includes('email not confirmed')) {
-        throw new Error("Votre email n'est pas encore confirmé. Vérifiez votre boîte de réception.")
+        throw new Error("Votre email n'est pas encore confirmÃ©. VÃ©rifiez votre boÃ®te de rÃ©ception.")
       }
       throw error
     }
     const { role, detail } = await roleForUser(data.user.id, data.session.access_token, data.user)
     if (role !== 'admin') {
       await supabase.auth.signOut()
-      const erratic = /réseau|failed to fetch|typeerror/i.test(detail || '')
+      const erratic = /rÃ©seau|failed to fetch|typeerror/i.test(detail || '')
       if (erratic) {
         const metaOk = !!data.user?.user_metadata?.role
         const sql =
           `update auth.users set raw_user_meta_data = coalesce(raw_user_meta_data,'{}'::jsonb) ` +
           `|| '{"role":"admin"}'::jsonb where id = '1349b9ab-468b-479e-a3aa-3ba23612519e';`
         throw new Error(
-          `Rôle non vérifiable : ${detail}. ` +
+          `RÃ´le non vÃ©rifiable : ${detail}. ` +
             (metaOk
-              ? 'Réessaye dans un instant.'
-              : 'Le rôle admin manque dans les métadonnées du compte. ' +
+              ? 'RÃ©essaye dans un instant.'
+              : 'Le rÃ´le admin manque dans les mÃ©tadonnÃ©es du compte. ' +
                 "Ouvre le Dashboard Supabase > SQL Editor > New query, colle ceci exactement, puis clique Run (1 ligne) :\n\n" +
                 sql +
                 '\n\nPuis reconnecte-toi.')
         )
       }
-      throw new Error(`Accès refusé : compte administrateur requis. (rôle lu : ${String(role)}${detail ? ` — détail : ${detail}` : ''})`)
+      throw new Error(`AccÃ¨s refusÃ© : compte administrateur requis. (rÃ´le lu : ${String(role)}${detail ? ` â€” dÃ©tail : ${detail}` : ''})`)
     }
     return data.user
   }
@@ -425,11 +440,11 @@ export async function login(email, password) {
     writeLS(K.auth, user)
     return user
   }
-  throw new Error('Identifiants incorrects. (Démo : admin@baol.sn / admin123)')
+  throw new Error('Identifiants incorrects. (DÃ©mo : admin@baol.sn / admin123)')
 }
 
 export async function resetPassword(email) {
-  if (!isSupabaseConfigured) throw new Error('Configurer Supabase pour réinitialiser le mot de passe')
+  if (!isSupabaseConfigured) throw new Error('Configurer Supabase pour rÃ©initialiser le mot de passe')
   const origin = typeof window !== 'undefined' ? window.location.origin : ''
   const { error } = await supabase.auth.resetPasswordForEmail(email, origin ? { redirectTo: `${origin}/admin/reinitialiser` } : undefined)
   if (error) throw error
@@ -468,7 +483,7 @@ export async function getProfile() {
       name: meta.name || DEFAULT_PROFILE.name,
       email: user?.email || '',
       phone: meta.phone || '',
-      avatar: localAvatar || meta.avatar || ''
+      avatar: sbUrl(localAvatar || meta.avatar || '')
     }
   }
   return { ...DEFAULT_PROFILE, ...readLS(K.profile, {}) }
@@ -493,13 +508,13 @@ export async function saveProfile(profile) {
     if (error) {
       const msg = (error.message || '').toLowerCase()
       if (msg.includes('invalid jwt') || msg.includes('expired')) {
-        throw new Error('Session expirée — reconnectez-vous puis réessayez.')
+        throw new Error('Session expirÃ©e â€” reconnectez-vous puis rÃ©essayez.')
       }
       if (msg.includes('not allowed') || msg.includes('forbidden')) {
-        throw new Error('Supabase a refusé la modification. Reconnectez-vous puis réessayez.')
+        throw new Error('Supabase a refusÃ© la modification. Reconnectez-vous puis rÃ©essayez.')
       }
       if (msg.includes('already registered') || msg.includes('duplicate')) {
-        throw new Error('Cet email est déjà utilisé par un autre compte.')
+        throw new Error('Cet email est dÃ©jÃ  utilisÃ© par un autre compte.')
       }
       throw error
     }
@@ -519,26 +534,26 @@ export async function saveProfile(profile) {
 // ---------- WHATSAPP ----------
 export function buildWhatsAppMessage(order, settings) {
   const lines = [
-    `🛍️ *NOUVELLE COMMANDE — Baol Electronik*`,
-    `Référence : *${order.number}*`,
+    `ðŸ›ï¸ *NOUVELLE COMMANDE â€” Baol Electronik*`,
+    `RÃ©fÃ©rence : *${order.number}*`,
     '',
-    '📦 *Articles :*'
+    'ðŸ“¦ *Articles :*'
   ]
   order.items.forEach((it, i) => {
     lines.push(`${i + 1}. ${it.name}`)
-    if (it.color) lines.push(`   • Couleur : ${it.color}`)
-    if (it.storage) lines.push(`   • Stockage : ${it.storage}`)
-    lines.push(`   • Quantité : ${it.qty} — ${Number(it.price).toLocaleString('fr-FR')} FCFA`)
+    if (it.color) lines.push(`   â€¢ Couleur : ${it.color}`)
+    if (it.storage) lines.push(`   â€¢ Stockage : ${it.storage}`)
+    lines.push(`   â€¢ QuantitÃ© : ${it.qty} â€” ${Number(it.price).toLocaleString('fr-FR')} FCFA`)
   })
   lines.push('')
-  lines.push(`💰 *Total : ${Number(order.total).toLocaleString('fr-FR')} FCFA*`)
+  lines.push(`ðŸ’° *Total : ${Number(order.total).toLocaleString('fr-FR')} FCFA*`)
   lines.push('')
   lines.push('Bonjour, je souhaite confirmer cette commande. Voici mes informations de livraison :')
-  lines.push(`📍 *Nom :* ${order.customer_name || ''}`)
-  lines.push(`📞 *Téléphone :* ${order.customer_phone || ''}`)
-  if (order.customer_email) lines.push(`📧 *Email :* ${order.customer_email}`)
-  if (order.customer_city) lines.push(`🏙️ *Ville :* ${order.customer_city}`)
-  if (order.customer_address) lines.push(`🏠 *Adresse de livraison :* ${order.customer_address}`)
+  lines.push(`ðŸ“ *Nom :* ${order.customer_name || ''}`)
+  lines.push(`ðŸ“ž *TÃ©lÃ©phone :* ${order.customer_phone || ''}`)
+  if (order.customer_email) lines.push(`ðŸ“§ *Email :* ${order.customer_email}`)
+  if (order.customer_city) lines.push(`ðŸ™ï¸ *Ville :* ${order.customer_city}`)
+  if (order.customer_address) lines.push(`ðŸ  *Adresse de livraison :* ${order.customer_address}`)
   const num = String(settings?.whatsapp || DEFAULT_WHATSAPP).replace(/\D/g, '')
   return `https://wa.me/${num}?text=${encodeURIComponent(lines.join('\n'))}`
 }

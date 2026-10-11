@@ -9,10 +9,14 @@ const realFetch = typeof window !== 'undefined' ? window.fetch.bind(window) : fe
 
 async function supabaseFetch(input, init) {
   const info = typeof input === 'string' ? input : input instanceof URL ? input.href : input && input.url
-  const proxyRest =
-    import.meta.env.PROD && info && info.startsWith(url) && info.includes('/rest/v1')
+  if (!info || !info.startsWith(url)) return realFetch(input, init)
+  const path = info.slice(url.length)
+  const proxyStorage = import.meta.env.PROD && path.startsWith('/storage/v1')
+  if (proxyStorage) {
+    return realFetch(`/supabase${path}`, init)
+  }
+  const proxyRest = import.meta.env.PROD && path.startsWith('/rest/v1')
   if (proxyRest) {
-    const path = info.slice(url.length)
     let reqHeaders = {}
     if (init && init.headers) {
       if (typeof init.headers.forEach === 'function') {
