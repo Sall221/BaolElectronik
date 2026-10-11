@@ -332,22 +332,32 @@ export async function deleteClient(id) {
 // ---------- AUTH ----------
 async function roleForUser(userId) {
   let rpcDetail = null
-  try {
-    const { data, error } = await supabase.rpc('get_my_role')
-    if (!error && typeof data === 'string') return { role: data }
-    if (error) rpcDetail = `${error.code || ''} ${error.message || ''}`.trim()
-  } catch (e) {
-    rpcDetail = e?.message || 'réseau'
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const { data, error } = await supabase.rpc('get_my_role')
+      if (!error && typeof data === 'string') return { role: data }
+      if (error) {
+        rpcDetail = `${error.code || ''} ${error.message || ''}`.trim()
+        break
+      }
+    } catch (e) {
+      rpcDetail = e?.message || 'réseau'
+      if (attempt === 0 && userId) continue
+    }
   }
-  if (!userId) return { role: null, detail: `rpc: ${rpcDetail}` }
-  try {
-    const { error: profErr, data: profile } = await supabase.from('profiles').select('role').eq('id', userId).maybeSingle()
-    if (!profErr && profile?.role) return { role: profile.role }
-    if (profErr) return { role: null, detail: `profiles: ${profErr.code || ''} ${profErr.message || ''}`.trim() }
-    return { role: null, detail: 'profiles: vide (ligne absente ou bloquée par RLS)' }
-  } catch (e) {
-    return { role: null, detail: `profiles: ${e?.message || 'réseau'}` }
+  if (!userId) return { role: null, detail: rpcDetail ? `rpc: ${rpcDetail}` : 'rpc: null' }
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const { error: profErr, data: profile } = await supabase.from('profiles').select('role').eq('id', userId).maybeSingle()
+      if (!profErr && profile?.role) return { role: profile.role }
+      if (profErr) return { role: null, detail: `profiles: ${profErr.code || ''} ${profErr.message || ''}`.trim() }
+      return { role: null, detail: 'profiles: vide (ligne absente ou bloquée par RLS)' }
+    } catch (e) {
+      if (attempt === 0) continue
+      return { role: null, detail: `profiles: ${e?.message || 'réseau'}` }
+    }
   }
+  return { role: null, detail: 'profiles: échec réseau répété' }
 }
 
 export async function login(email, password) {
@@ -366,6 +376,12 @@ export async function login(email, password) {
     const { role, detail } = await roleForUser(data.user.id)
     if (role !== 'admin') {
       await supabase.auth.signOut()
+      const erratic = /réseau|fetch|typeerror|failed to fetch|rpc: null/i.test(detail || '')
+      if (erratic) {
+        throw new Error(
+          `Réponse de Supabase instable : rôle non vérifiable (${detail}). Réessayez ; si ça persiste, testez sur un autre réseau (4G) ou désactivez le pare-feu/antivirus.`
+        )
+      }
       throw new Error(`Accès refusé : compte administrateur requis. (rôle lu : ${String(role)}${detail ? ` — détail : ${detail}` : ''})`)
     }
     return data.user
