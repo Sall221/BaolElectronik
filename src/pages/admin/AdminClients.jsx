@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Users, ShoppingBag, Phone, MapPin, Mail, Plus, Eye, Pencil, Trash2, Save, X, Search } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { getClients, saveClient, deleteClient, getOrders } from '../../lib/api'
+import { getClients, saveClient, deleteClient, getOrders, tableExists } from '../../lib/api'
 import { formatPrice, formatDate } from '../../lib/constants'
 import Pagination from '../../components/Pagination'
 
@@ -137,12 +137,14 @@ export default function AdminClients() {
   const [editing, setEditing] = useState(null)
   const [creating, setCreating] = useState(false)
   const [details, setDetails] = useState(null)
+  const [missingTable, setMissingTable] = useState(false)
 
   const load = () => {
     getClients().then(setClients).catch(() => setClients([]))
     getOrders().then(setOrders).catch(() => setOrders([]))
   }
   useEffect(() => { load() }, [])
+  useEffect(() => { tableExists('clients').then(setMissingTable) }, [])
   useEffect(() => { setPage(1) }, [q])
 
   const statsFor = useMemo(() => (client) => {
@@ -193,6 +195,25 @@ export default function AdminClients() {
         <Search size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher un client..." className="input bg-white pl-10" />
       </div>
+
+      {missingTable && (
+        <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800">
+          <p className="font-bold">Table « clients » absente dans Supabase</p>
+          <p className="mt-1">
+            Colle ce code une seule fois dans <b>Dashboard Supabase → SQL Editor → New query → Run</b>, puis rechargé la page :
+          </p>
+          <pre className="mt-3 overflow-x-auto rounded-xl bg-nuit p-3 text-[11px] leading-relaxed text-emerald-300">{`create table if not exists public.clients (
+  id bigint generated always as identity primary key,
+  name text not null default '',
+  phone text not null default '',
+  email text not null default '',
+  city text not null default '',
+  address text not null default '',
+  note text not null default '',
+  created_at timestamptz not null default now()
+);`}</pre>
+        </div>
+      )}
 
       {list.length === 0 ? (
         <div className="admin-card flex flex-col items-center py-16 text-center">

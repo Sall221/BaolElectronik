@@ -19,16 +19,14 @@ export function StoreProvider({ children }) {
   })
 
   const refresh = useCallback(async () => {
-    try {
-      const [p, s, o] = await Promise.all([getProducts(), getSettings(), getOrders()])
-      setProducts(p)
-      setOrders(o)
-      setSettings({ ...DEMO_SETTINGS, ...s })
-    } catch {
+    const [p, s, o] = await Promise.allSettled([getProducts(), getSettings(), getOrders()])
+    if (p.status === 'fulfilled') setProducts(Array.isArray(p.value) ? p.value : [])
+    if (o.status === 'fulfilled') setOrders(Array.isArray(o.value) ? o.value : [])
+    if (s.status === 'fulfilled') setSettings({ ...DEMO_SETTINGS, ...(s.value || {}) })
+    if (p.status === 'rejected' && o.status === 'rejected' && s.status === 'rejected') {
       toast.error('Erreur de chargement des données')
-    } finally {
-      setLoading(false)
     }
+    setLoading(false)
   }, [])
 
   useEffect(() => { refresh() }, [refresh])

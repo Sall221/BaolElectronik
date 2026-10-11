@@ -77,11 +77,28 @@ function mapDeep(v) {
   }
 }
 
+function isMissingTable(error) {
+  return Boolean(
+    error &&
+    (error.code === 'PGRST205' || /Could not find the table/i.test(`${error.message || ''} ${error.details || ''}`))
+  )
+}
+
+export async function tableExists(name) {
+  if (!isSupabaseConfigured) return true
+  const { error } = await supabase.from(name).select('id').limit(1)
+  if (!error) return true
+  return !isMissingTable(error)
+}
+
 // ---------- PRODUITS ----------
 export async function getProducts() {
   if (isSupabaseConfigured) {
     const { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: false })
-    if (error) throw error
+    if (error) {
+      if (isMissingTable(error)) return []
+      throw error
+    }
     return mapDeep(data)
   }
   return mapDeep(readLS(K.products, []))
@@ -90,7 +107,10 @@ export async function getProducts() {
 export async function getProductBySlug(slug) {
   if (isSupabaseConfigured) {
     const { data, error } = await supabase.from('products').select('*').eq('slug', slug).single()
-    if (error) throw error
+    if (error) {
+      if (isMissingTable(error) || error.code === 'PGRST116') return null
+      throw error
+    }
     return mapDeep(data)
   }
   return mapDeep(readLS(K.products, [])).find((p) => p.slug === slug) || null
@@ -135,7 +155,10 @@ export async function deleteProduct(id) {
 export async function getOrders() {
   if (isSupabaseConfigured) {
     const { data, error } = await supabase.from('orders').select('*').order('created_at', { ascending: false })
-    if (error) throw error
+    if (error) {
+      if (isMissingTable(error)) return []
+      throw error
+    }
     return mapDeep(data)
   }
   return mapDeep(readLS(K.orders, [])).sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
@@ -239,7 +262,10 @@ export async function deleteOrder(id) {
 export async function getSettings() {
   if (isSupabaseConfigured) {
     const { data, error } = await supabase.from('settings').select('data').eq('id', 1).single()
-    if (error) throw error
+    if (error) {
+      if (isMissingTable(error) || error.code === 'PGRST116') return { ...DEMO_SETTINGS }
+      throw error
+    }
     return { ...DEMO_SETTINGS, ...mapDeep(data?.data || {}) }
   }
   return mapDeep(readLS(K.settings, DEMO_SETTINGS))
@@ -259,7 +285,10 @@ export async function saveSettings(settings) {
 export async function getMedia() {
   if (isSupabaseConfigured) {
     const { data, error } = await supabase.from('media').select('*').order('created_at', { ascending: false })
-    if (error) throw error
+    if (error) {
+      if (isMissingTable(error)) return []
+      throw error
+    }
     return mapDeep(data)
   }
   return mapDeep(readLS(K.media, []))
@@ -296,8 +325,11 @@ export async function deleteMedia(id) {
 export async function getClients() {
   if (isSupabaseConfigured) {
     const { data, error } = await supabase.from('clients').select('*').order('created_at', { ascending: false })
-    if (error) throw error
-    return data
+    if (error) {
+      if (isMissingTable(error)) return []
+      throw error
+    }
+    return mapDeep(data)
   }
   return mapDeep(readLS(K.clients, [])).sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
 }
